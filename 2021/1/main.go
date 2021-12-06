@@ -3,7 +3,7 @@ package main
 import (
 	_ "embed"
 	"fmt"
-	"os"
+	"log"
 	"strconv"
 	"strings"
 
@@ -16,14 +16,32 @@ import (
 var input string
 
 func main() {
-	var last, count int
-
 	lines := strings.Fields(input)
+
+	count, err := countIncLines(lines)
+	if err != nil {
+		log.Fatalln("failed to count lines:", err)
+	}
+
+	log.Printf("Line depth increased %d times\n", count)
+
+	count, err = countIncWindows(lines)
+	if err != nil {
+		log.Fatalln("failed to count windows:", err)
+	}
+
+	log.Printf("Window depth increased %d times\n", count)
+}
+
+func countIncLines(lines []string) (count int, err error) {
+	var last int
+
 	for i, line := range lines {
-		depth, err := strconv.Atoi(line)
+		var depth int
+
+		depth, err = strconv.Atoi(line)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			return 0, fmt.Errorf("atoi failed: %w", err)
 		}
 
 		if depth > last && i > 0 {
@@ -33,5 +51,33 @@ func main() {
 		last = depth
 	}
 
-	fmt.Printf("Depth increased %d times\n", count)
+	return count, nil
+}
+
+func countIncWindows(lines []string) (count int, err error) {
+	windows := make([]int, len(lines))
+
+	for i, line := range lines {
+		var depth int
+
+		depth, err = strconv.Atoi(line)
+		if err != nil {
+			return 0, fmt.Errorf("atoi failed: %w", err)
+		}
+
+		for w := i; w > i-3 && w >= 0; w-- {
+			windows[w] += depth
+		}
+	}
+
+	var last int
+	for i, window := range windows {
+		if window > last && i > 0 {
+			count++
+		}
+
+		last = window
+	}
+
+	return count, nil
 }
