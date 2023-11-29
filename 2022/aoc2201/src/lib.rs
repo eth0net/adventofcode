@@ -2,28 +2,33 @@ pub fn most_calories(input: &str) -> usize {
     input
         .lines()
         .map(|line| line.trim())
-        .fold((0, 0), |(mut high, mut curr), line| {
-            if line.is_empty() {
-                return (high, 0);
+        .map(|line| str::parse::<usize>(line))
+        .fold((0, 0), |(mut high, mut curr), line| match line {
+            Ok(val) => {
+                curr += val;
+                if high < curr {
+                    high = curr
+                };
+                (high, curr)
             }
-
-            if let Ok(val) = str::parse::<usize>(line) {
-                curr += val
-            }
-
-            if high < curr {
-                high = curr
-            }
-
-            (high, curr)
+            Err(_) => (high, 0),
         })
         .0
 }
 
+pub fn top_three(input: &str) -> usize {
+    let mut stack = vec![0];
+    let mut idx = 0;
+
+    input
+        .lines()
+        .map(|line| line.trim())
+        .map(|line| str::parse::<usize>(line))
+        .for_each(|line| {});
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     const INPUT: &str = "\
     1000
     2000
@@ -42,7 +47,12 @@ mod tests {
     ";
 
     #[test]
-    fn parse_input() {
-        assert_eq!(most_calories(INPUT), 24000);
+    fn most_calories() {
+        assert_eq!(super::most_calories(INPUT), 24000);
+    }
+
+    #[test]
+    fn top_three() {
+        assert_eq!(super::top_three(INPUT), 45000);
     }
 }
