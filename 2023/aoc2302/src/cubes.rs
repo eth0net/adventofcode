@@ -3,7 +3,7 @@ use anyhow::{bail, Context, Result};
 #[derive(Debug, Default)]
 pub struct Game {
     pub id: usize,
-    pub rounds: Vec<Round>,
+    pub rounds: Vec<Set>,
 }
 
 impl Game {
@@ -18,27 +18,31 @@ impl Game {
 
         let mut rounds = vec![];
         for round in rounds_str.split("; ") {
-            rounds.push(Round::parse(round).with_context(|| "parsing round")?)
+            rounds.push(Set::parse(round).with_context(|| "parsing round")?)
         }
 
         Ok(Game { id, rounds })
     }
 
-    pub fn possible(&self, r: usize, g: usize, b: usize) -> bool {
-        self.rounds.iter().all(|round| round.possible(r, g, b))
+    pub fn possible(&self, bag: &Set) -> bool {
+        self.rounds.iter().all(|round| round.possible(bag))
     }
 }
 
 #[derive(Debug, Default)]
-pub struct Round {
-    red: usize,
-    green: usize,
-    blue: usize,
+pub struct Set {
+    pub red: usize,
+    pub green: usize,
+    pub blue: usize,
 }
 
-impl Round {
-    fn parse(s: &str) -> Result<Round> {
-        let mut round = Round::default();
+impl Set {
+    pub fn new(red: usize, green: usize, blue: usize) -> Set {
+        Set { red, green, blue }
+    }
+
+    fn parse(s: &str) -> Result<Set> {
+        let mut round = Set::default();
 
         for mut cube in s.split(", ").map(|f| f.split_ascii_whitespace()) {
             let count = cube
@@ -62,7 +66,11 @@ impl Round {
         Ok(round)
     }
 
-    fn possible(&self, r: usize, g: usize, b: usize) -> bool {
-        self.red <= r && self.green <= g && self.blue <= b
+    fn possible(&self, bag: &Set) -> bool {
+        self.red <= bag.red && self.green <= bag.green && self.blue <= bag.blue
+    }
+
+    pub fn power(&self) -> usize {
+        self.red * self.green * self.blue
     }
 }
