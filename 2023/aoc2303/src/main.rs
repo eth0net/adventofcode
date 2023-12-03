@@ -5,9 +5,9 @@ use aoc2303::one;
 const INPUT: &str = include_str!("../input");
 
 fn main() -> Result<()> {
-    let sum = one::sum_missing_parts(INPUT)?;
+    let sum = one::sum_parts(INPUT)?;
 
-    println!("Sum of missing parts: {}", sum);
+    println!("Sum of parts: {}", sum);
 
     Ok(())
 }

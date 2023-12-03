@@ -1,7 +1,7 @@
 #[derive(Debug, Default)]
 pub struct Engine {
-    missing_parts: Vec<usize>,
-    symbols: Vec<Location>,
+    parts: Vec<usize>,
+    symbols: Vec<Symbol>,
 }
 
 impl Engine {
@@ -11,7 +11,9 @@ impl Engine {
         for (l, line) in s.lines().enumerate() {
             for (c, char) in line.char_indices() {
                 if char.is_ascii_punctuation() && char != '.' {
-                    engine.symbols.push(Location::new(l, c))
+                    let location = Location::new(l, c);
+                    let symbol = Symbol::new(char, location);
+                    engine.symbols.push(symbol)
                 }
             }
         }
@@ -22,7 +24,10 @@ impl Engine {
                 if char.is_ascii_digit() {
                     let location = Location::new(l, c);
 
-                    let adjacent_to_symbol = engine.symbols.iter().any(|l| l.adjacent(&location));
+                    let adjacent_to_symbol = engine
+                        .symbols
+                        .iter()
+                        .any(|l| l.location.adjacent(&location));
 
                     if !adjacent_to_symbol {
                         continue;
@@ -45,7 +50,7 @@ impl Engine {
                         part.push(char)
                     }
 
-                    engine.missing_parts.push(part.parse()?)
+                    engine.parts.push(part.parse()?)
                 }
             }
         }
@@ -53,8 +58,20 @@ impl Engine {
         Ok(engine)
     }
 
-    pub fn sum_missing_parts(&self) -> usize {
-        self.missing_parts.iter().fold(0, |a, b| a + b)
+    pub fn sum_parts(&self) -> usize {
+        self.parts.iter().fold(0, |a, b| a + b)
+    }
+}
+
+#[derive(Debug, Default, Eq, PartialEq)]
+struct Symbol {
+    char: char,
+    location: Location,
+}
+
+impl Symbol {
+    fn new(char: char, location: Location) -> Symbol {
+        Symbol { char, location }
     }
 }
 
@@ -97,12 +114,12 @@ mod tests {
 .664.598.."
             .trim();
         let expected_symbols = vec![
-            Location::new(1, 3),
-            Location::new(3, 6),
-            Location::new(4, 3),
-            Location::new(5, 5),
-            Location::new(8, 3),
-            Location::new(8, 5),
+            Symbol::new('*', Location::new(1, 3)),
+            Symbol::new('#', Location::new(3, 6)),
+            Symbol::new('*', Location::new(4, 3)),
+            Symbol::new('+', Location::new(5, 5)),
+            Symbol::new('$', Location::new(8, 3)),
+            Symbol::new('*', Location::new(8, 5)),
         ];
         let expected_parts = vec![467, 35, 633, 617, 592, 755, 664, 598];
         let expected_sum = 4361;
@@ -110,8 +127,8 @@ mod tests {
         let engine = Engine::parse(input)?;
 
         assert_eq!(expected_symbols, engine.symbols);
-        assert_eq!(expected_parts, engine.missing_parts);
-        assert_eq!(expected_sum, engine.sum_missing_parts());
+        assert_eq!(expected_parts, engine.parts);
+        assert_eq!(expected_sum, engine.sum_parts());
 
         Ok(())
     }
