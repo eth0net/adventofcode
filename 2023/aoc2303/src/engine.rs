@@ -1,4 +1,4 @@
-use std::ops::{Range, RangeBounds};
+use std::ops::Range;
 
 #[derive(Debug, Default)]
 pub struct Engine {
@@ -120,10 +120,6 @@ struct Location {
 }
 
 impl Location {
-    fn from_range_usize(line: usize, range: Range<usize>) -> Location {
-        Location { line, range }
-    }
-
     fn from_usize(line: usize, index: usize) -> Location {
         let range = index..index + 1;
         Location { line, range }
