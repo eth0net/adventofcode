@@ -1,8 +1,8 @@
 use crate::scratchcards::Table;
 use anyhow::Result;
 
-pub fn calculate_score(s: &str) -> Result<usize> {
-    Ok(Table::parse(s)?.score())
+pub fn total_scratchcards(s: &str) -> Result<usize> {
+    Ok(Table::parse(s)?.count_scratchcards())
 }
 
 #[cfg(test)]
@@ -20,8 +20,8 @@ Card 5: 87 83 26 28 32 | 88 30 70 12 93 22 82 36
 Card 6: 31 18 13 56 72 | 74 77 10 23 35 67 36 11
 "
         .trim();
-        let expected = 13;
-        let score = calculate_score(input).unwrap();
-        assert_eq!(score, expected, "score not equal to expected");
+        let expected = 30;
+        let score = total_scratchcards(input).unwrap();
+        assert_eq!(score, expected, "count not equal to expected");
     }
 }
