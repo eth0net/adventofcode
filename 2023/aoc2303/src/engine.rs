@@ -120,12 +120,16 @@ struct Location {
 }
 
 impl Location {
-    fn from_usize(line: usize, index: usize) -> Location {
+    pub fn from_range_usize(line: usize, range: Range<usize>) -> Location {
+        Location { line, range }
+    }
+
+    pub fn from_usize(line: usize, index: usize) -> Location {
         let range = index..index + 1;
         Location { line, range }
     }
 
-    fn adjacent(&self, other: &Location) -> bool {
+    pub fn adjacent(&self, other: &Location) -> bool {
         let line_adjacent = self.line.abs_diff(other.line) <= 1;
         let char_adjacent = ranges_adjacent(&self.range, &other.range);
         self != other && line_adjacent && char_adjacent
