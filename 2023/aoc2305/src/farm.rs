@@ -1,7 +1,10 @@
 use anyhow::{bail, Context, Result};
-use std::{iter::Peekable, num::ParseIntError, ops::Range, str::Lines};
+use std::{
+    cmp::Ordering, iter::Peekable, num::ParseIntError, ops::Range, str::Lines, sync::mpsc::channel,
+    thread::spawn,
+};
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct RangeMap {
     source: Range<isize>,
     shift: isize,
@@ -30,7 +33,29 @@ impl RangeMap {
     }
 }
 
-#[derive(Debug, Default)]
+impl PartialOrd for RangeMap {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for RangeMap {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let start = self.source.start.cmp(&other.source.start);
+        if start != Ordering::Equal {
+            return start;
+        }
+
+        let end = self.source.end.cmp(&other.source.end);
+        if end != Ordering::Equal {
+            return end;
+        }
+
+        self.shift.cmp(&other.shift)
+    }
+}
+
+#[derive(Clone, Debug, Default)]
 pub struct Almanac {
     seeds: Vec<isize>,
     seed_soil: Vec<RangeMap>,
@@ -43,34 +68,51 @@ pub struct Almanac {
 }
 
 impl Almanac {
-    pub fn parse(s: &str) -> Result<Almanac> {
+    pub fn with_seed_list(s: &str) -> Result<Almanac> {
+        Almanac::parse(s, parse_isize_vec)
+    }
+
+    pub fn with_seed_ranges(s: &str) -> Result<Almanac> {
+        Almanac::parse(s, parse_isize_range_seq)
+    }
+
+    fn parse(s: &str, seed_parser: fn(&str) -> Result<Vec<isize>>) -> Result<Almanac> {
+        println!("starting almanac parse");
         let mut almanac = Almanac::default();
         let mut lines = s.lines().peekable();
         while let Some(line) = lines.next() {
             match line {
                 l if l.starts_with("seeds: ") => {
+                    println!("found seeds");
                     let (_, seeds) = l.split_once(": ").unwrap();
-                    almanac.seeds = parse_isize_vec(seeds).with_context(|| "parsing seeds")?;
+                    almanac.seeds = seed_parser(seeds).with_context(|| "parsing seeds")?;
                 }
                 "seed-to-soil map:" => {
+                    println!("found seed to soil map");
                     almanac.seed_soil = parse_mappers(&mut lines)?;
                 }
                 "soil-to-fertilizer map:" => {
+                    println!("found soil to fertilizer map");
                     almanac.soil_fertilizer = parse_mappers(&mut lines)?;
                 }
                 "fertilizer-to-water map:" => {
+                    println!("found fertilizer to water map");
                     almanac.fertilizer_water = parse_mappers(&mut lines)?;
                 }
                 "water-to-light map:" => {
+                    println!("found water to light map");
                     almanac.water_light = parse_mappers(&mut lines)?;
                 }
                 "light-to-temperature map:" => {
+                    println!("found light to temperature map");
                     almanac.light_temperature = parse_mappers(&mut lines)?;
                 }
                 "temperature-to-humidity map:" => {
+                    println!("found temperature to humidity map");
                     almanac.temperature_humidity = parse_mappers(&mut lines)?;
                 }
                 "humidity-to-location map:" => {
+                    println!("found humidity to location map");
                     almanac.humidity_location = parse_mappers(&mut lines)?;
                 }
                 _ => {}
@@ -80,26 +122,70 @@ impl Almanac {
     }
 
     pub fn closest(&self) -> Option<isize> {
-        let mut locations: Vec<isize> = self
-            .seeds
-            .iter()
-            .map(|s| with_mappers(&self.seed_soil, s))
-            .map(|s| with_mappers(&self.soil_fertilizer, &s))
-            .map(|f| with_mappers(&self.fertilizer_water, &f))
-            .map(|w| with_mappers(&self.water_light, &w))
-            .map(|l| with_mappers(&self.light_temperature, &l))
-            .map(|t| with_mappers(&self.temperature_humidity, &t))
-            .map(|h| with_mappers(&self.humidity_location, &h))
-            .collect();
+        // channel per seed
+        let (tx, rx) = channel();
+
+        println!("Seed count: {}", self.seeds.len());
+
+        for (count, seed) in self.seeds.iter().enumerate() {
+            let seed = seed.to_owned();
+            let me = self.to_owned();
+            let tx = tx.clone();
+            let count = count.to_owned();
+            spawn(move || -> Result<()> {
+                let soil = with_mappers(&me.seed_soil, &seed);
+                let fert = with_mappers(&me.soil_fertilizer, &soil);
+                let water = with_mappers(&me.fertilizer_water, &fert);
+                let light = with_mappers(&me.water_light, &water);
+                let temp = with_mappers(&me.light_temperature, &light);
+                let hum = with_mappers(&me.temperature_humidity, &temp);
+                let loc = with_mappers(&me.humidity_location, &hum);
+                tx.send(loc).with_context(|| "transmitting thread data")?;
+                println!("thread {} complete", count);
+                Ok(())
+            });
+        }
+        drop(tx);
+
+        let mut locations: Vec<isize> = rx.iter().collect();
+
+        // // Original
+        // let mut locations: Vec<isize> = self
+        //     .seeds
+        //     .iter()
+        //     .map(|s| with_mappers(&self.seed_soil, s, "seed-soil"))
+        //     .map(|s| with_mappers(&self.soil_fertilizer, &s, "soil-fertilizer"))
+        //     .map(|f| with_mappers(&self.fertilizer_water, &f, "fertilizer-water"))
+        //     .map(|w| with_mappers(&self.water_light, &w, "water-light"))
+        //     .map(|l| with_mappers(&self.light_temperature, &l, "light-temperature"))
+        //     .map(|t| with_mappers(&self.temperature_humidity, &t, "temperature-humidity"))
+        //     .map(|h| with_mappers(&self.humidity_location, &h, "humidity-location"))
+        //     .collect();
+
         locations.sort_unstable();
         Some(*locations.first()?)
     }
 }
 
 fn with_mappers(maps: &[RangeMap], value: &isize) -> isize {
-    maps.iter()
-        .find_map(|m| m.map_value(value))
-        .unwrap_or(*value)
+    let (tx, rx) = channel();
+    for map in maps {
+        let map = map.to_owned();
+        let value = value.to_owned();
+        let tx = tx.clone();
+        spawn(move || -> Result<()> {
+            if let Some(value) = map.map_value(&value) {
+                tx.send(value)?;
+            }
+            Ok(())
+        });
+    }
+    drop(tx);
+    rx.recv().unwrap_or(*value)
+
+    // maps.iter()
+    //     .find_map(|m| m.map_value(value))
+    //     .unwrap_or(*value)
 }
 
 fn parse_isize_vec(s: &str) -> Result<Vec<isize>, anyhow::Error> {
@@ -109,11 +195,24 @@ fn parse_isize_vec(s: &str) -> Result<Vec<isize>, anyhow::Error> {
         .with_context(|| "parsing isize vec from string")
 }
 
+fn parse_isize_range_seq(s: &str) -> Result<Vec<isize>, anyhow::Error> {
+    let split = parse_isize_vec(s)?;
+    if split.len() % 2 != 0 {
+        bail!("invalid seed range sequence")
+    }
+    let seeds = split
+        .chunks_exact(2)
+        .flat_map(|chunk| chunk[0]..(chunk[0] + chunk[1]))
+        .collect();
+    Ok(seeds)
+}
+
 fn parse_mappers(lines: &mut Peekable<Lines<'_>>) -> Result<Vec<RangeMap>> {
     let mut mappers = vec![];
     while let Some(line) = lines.next_if(|l| !l.is_empty()) {
         mappers.push(RangeMap::parse(line)?);
     }
+    mappers.sort_unstable();
     Ok(mappers)
 }
 
@@ -121,11 +220,9 @@ fn parse_mappers(lines: &mut Peekable<Lines<'_>>) -> Result<Vec<RangeMap>> {
 mod tests {
     use super::*;
 
-    use anyhow::{anyhow, Result};
+    use anyhow::Result;
 
-    #[test]
-    fn test_almanac_parse_closest() -> Result<()> {
-        let input = "
+    const INPUT: &str = "
 seeds: 79 14 55 13
 
 seed-to-soil map:
@@ -161,13 +258,18 @@ humidity-to-location map:
 56 93 4
 
 ";
-        let expected = 35;
-        assert_eq!(
-            Almanac::parse(input)?
-                .closest()
-                .ok_or(anyhow!("no value for closest"))?,
-            expected
-        );
+
+    #[test]
+    fn test_almanac_seed_list_closest() -> Result<()> {
+        let expected = Some(35);
+        assert_eq!(Almanac::with_seed_list(INPUT)?.closest(), expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_almanace_seed_range_closest() -> Result<()> {
+        let expected = Some(46);
+        assert_eq!(Almanac::with_seed_ranges(INPUT)?.closest(), expected);
         Ok(())
     }
 }

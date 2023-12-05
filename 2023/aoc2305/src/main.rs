@@ -1,12 +1,14 @@
-use anyhow::{Context, Result};
-use aoc2305::one;
+use anyhow::Result;
+use aoc2305::{one, two};
 
 const INPUT: &str = include_str!("../input");
 
 fn main() -> Result<()> {
-    let closest = one::closest_seed_location(INPUT).with_context(|| "getting closest location")?;
+    let list = one::closest_list_location(INPUT)?;
+    let range = two::closest_sequence_location(INPUT)?;
 
-    println!("Closest: {closest}");
+    println!("Closest with list: {list}");
+    println!("Closest with range: {range}");
 
     Ok(())
 }
