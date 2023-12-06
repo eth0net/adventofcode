@@ -1,8 +1,9 @@
-use crate::boats::RaceList;
 use anyhow::Result;
 
+use crate::boats::RaceList;
+
 pub fn race_result(s: &str) -> Result<usize> {
-    Ok(RaceList::parse_sequence(s)?.win_score())
+    Ok(RaceList::parse_single(s)?.win_score())
 }
 
 #[cfg(test)]
@@ -18,7 +19,7 @@ Distance:  9  40  200
 
 "
         .trim_start();
-        let expect = 288;
+        let expect = 71503;
         assert_eq!(race_result(input)?, expect);
         Ok(())
     }

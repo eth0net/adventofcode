@@ -12,7 +12,7 @@ impl RaceList {
         RaceList { races }
     }
 
-    pub fn parse(s: &str) -> Result<RaceList> {
+    pub fn parse_sequence(s: &str) -> Result<RaceList> {
         let mut lines = s.lines();
         let times = lines
             .next()
@@ -31,7 +31,7 @@ impl RaceList {
             .split_ascii_whitespace()
             .map(str::parse::<usize>)
             .collect::<Result<Vec<usize>, ParseIntError>>()
-            .with_context(|| "parsing times")?;
+            .with_context(|| "parsing distances")?;
 
         let races = times
             .into_iter()
@@ -40,6 +40,29 @@ impl RaceList {
             .collect();
 
         Ok(RaceList::new(races))
+    }
+
+    pub fn parse_single(s: &str) -> Result<RaceList> {
+        let mut lines = s.lines();
+
+        let time = lines
+            .next()
+            .with_context(|| "getting first line")?
+            .strip_prefix("Time:")
+            .with_context(|| "stripping time prefix")?
+            .replace(' ', "")
+            .parse()
+            .with_context(|| "parsing time")?;
+        let distance = lines
+            .next()
+            .with_context(|| "getting second line")?
+            .strip_prefix("Distance:")
+            .with_context(|| "stripping distance prefix")?
+            .replace(' ', "")
+            .parse()
+            .with_context(|| "parsing distance")?;
+
+        Ok(RaceList::new(vec![Race::new(time, distance)]))
     }
 
     pub fn win_score(&self) -> usize {
