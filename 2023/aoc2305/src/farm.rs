@@ -1,8 +1,7 @@
 use anyhow::{bail, Context, Result};
-use std::{
-    cmp::Ordering, iter::Peekable, num::ParseIntError, ops::Range, str::Lines, sync::mpsc::channel,
-    thread::spawn,
-};
+use std::{cmp::Ordering, iter::Peekable, num::ParseIntError, ops::Range, str::Lines};
+#[cfg(concurrency)]
+use std::{sync::mpsc::channel, sync::Arc, thread::spawn};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct RangeMap {
@@ -121,25 +120,27 @@ impl Almanac {
         Ok(almanac)
     }
 
+    #[cfg(concurrency)]
     pub fn closest(&self) -> Option<isize> {
-        // channel per seed
         let (tx, rx) = channel();
+
+        let almanac = Arc::new(self.clone());
 
         println!("Seed count: {}", self.seeds.len());
 
         for (count, seed) in self.seeds.iter().enumerate() {
-            let seed = seed.to_owned();
-            let me = self.to_owned();
             let tx = tx.clone();
             let count = count.to_owned();
+            let seed = seed.to_owned();
+            let almanac = Arc::clone(&almanac);
             spawn(move || -> Result<()> {
-                let soil = with_mappers(&me.seed_soil, &seed);
-                let fert = with_mappers(&me.soil_fertilizer, &soil);
-                let water = with_mappers(&me.fertilizer_water, &fert);
-                let light = with_mappers(&me.water_light, &water);
-                let temp = with_mappers(&me.light_temperature, &light);
-                let hum = with_mappers(&me.temperature_humidity, &temp);
-                let loc = with_mappers(&me.humidity_location, &hum);
+                let soil = with_mappers(&almanac.seed_soil, &seed);
+                let fert = with_mappers(&almanac.soil_fertilizer, &soil);
+                let water = with_mappers(&almanac.fertilizer_water, &fert);
+                let light = with_mappers(&almanac.water_light, &water);
+                let temp = with_mappers(&almanac.light_temperature, &light);
+                let hum = with_mappers(&almanac.temperature_humidity, &temp);
+                let loc = with_mappers(&almanac.humidity_location, &hum);
                 tx.send(loc).with_context(|| "transmitting thread data")?;
                 println!("thread {} complete", count);
                 Ok(())
@@ -149,18 +150,23 @@ impl Almanac {
 
         let mut locations: Vec<isize> = rx.iter().collect();
 
-        // // Original
-        // let mut locations: Vec<isize> = self
-        //     .seeds
-        //     .iter()
-        //     .map(|s| with_mappers(&self.seed_soil, s, "seed-soil"))
-        //     .map(|s| with_mappers(&self.soil_fertilizer, &s, "soil-fertilizer"))
-        //     .map(|f| with_mappers(&self.fertilizer_water, &f, "fertilizer-water"))
-        //     .map(|w| with_mappers(&self.water_light, &w, "water-light"))
-        //     .map(|l| with_mappers(&self.light_temperature, &l, "light-temperature"))
-        //     .map(|t| with_mappers(&self.temperature_humidity, &t, "temperature-humidity"))
-        //     .map(|h| with_mappers(&self.humidity_location, &h, "humidity-location"))
-        //     .collect();
+        locations.sort_unstable();
+        Some(*locations.first()?)
+    }
+
+    #[cfg(not(concurrency))]
+    pub fn closest(&self) -> Option<isize> {
+        let mut locations: Vec<isize> = self
+            .seeds
+            .iter()
+            .map(|s| with_mappers(&self.seed_soil, s))
+            .map(|s| with_mappers(&self.soil_fertilizer, &s))
+            .map(|f| with_mappers(&self.fertilizer_water, &f))
+            .map(|w| with_mappers(&self.water_light, &w))
+            .map(|l| with_mappers(&self.light_temperature, &l))
+            .map(|t| with_mappers(&self.temperature_humidity, &t))
+            .map(|h| with_mappers(&self.humidity_location, &h))
+            .collect();
 
         locations.sort_unstable();
         Some(*locations.first()?)
@@ -168,24 +174,24 @@ impl Almanac {
 }
 
 fn with_mappers(maps: &[RangeMap], value: &isize) -> isize {
-    let (tx, rx) = channel();
-    for map in maps {
-        let map = map.to_owned();
-        let value = value.to_owned();
-        let tx = tx.clone();
-        spawn(move || -> Result<()> {
-            if let Some(value) = map.map_value(&value) {
-                tx.send(value)?;
-            }
-            Ok(())
-        });
-    }
-    drop(tx);
-    rx.recv().unwrap_or(*value)
+    // let (tx, rx) = channel();
+    // for map in maps {
+    //     let map = map.to_owned();
+    //     let value = value.to_owned();
+    //     let tx = tx.clone();
+    //     spawn(move || -> Result<()> {
+    //         if let Some(value) = map.map_value(&value) {
+    //             tx.send(value)?;
+    //         }
+    //         Ok(())
+    //     });
+    // }
+    // drop(tx);
+    // rx.recv().unwrap_or(*value)
 
-    // maps.iter()
-    //     .find_map(|m| m.map_value(value))
-    //     .unwrap_or(*value)
+    maps.iter()
+        .find_map(|m| m.map_value(value))
+        .unwrap_or(*value)
 }
 
 fn parse_isize_vec(s: &str) -> Result<Vec<isize>, anyhow::Error> {
