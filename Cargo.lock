@@ -113,6 +113,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "aoc2306"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "aoc_input",
+ "test-case",
+]
+
+[[package]]
 name = "aoc_input"
 version = "0.1.0"
 dependencies = [
