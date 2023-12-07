@@ -11,13 +11,11 @@ pub fn play(s: &str) -> Result<usize> {
         .with_context(|| "parsing sets")?;
     sets.sort_unstable();
 
-    eprintln!("{sets:?}");
-
     let winnings = sets
         .iter()
         .enumerate()
         .map(|(i, set)| {
-            let rank = (sets.len() - i);
+            let rank = sets.len() - i;
             set.bid * rank
         })
         .reduce(|a, b| a + b)
