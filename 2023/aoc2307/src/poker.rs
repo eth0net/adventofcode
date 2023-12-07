@@ -65,12 +65,10 @@ impl PartialOrd for Hand {
 
 impl Ord for Hand {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        let hand_type = self.hand_type.cmp(&other.hand_type);
-        if hand_type != Ordering::Equal {
-            return hand_type;
+        match self.hand_type.cmp(&other.hand_type) {
+            Ordering::Equal => self.cards.cmp(&other.cards),
+            o => o,
         }
-
-        self.cards.cmp(&other.cards)
     }
 }
 
@@ -94,10 +92,10 @@ impl Hand {
             1 => Type::FiveOfAKind,
             2 => match values.contains(&4) {
                 true => Type::FourOfAKind,
-                false => Type::ThreeOfAKind,
+                false => Type::FullHouse,
             },
             3 => match values.contains(&3) {
-                true => Type::FullHouse,
+                true => Type::ThreeOfAKind,
                 false => Type::TwoPair,
             },
             4 => Type::OnePair,
@@ -123,22 +121,26 @@ impl PartialOrd for Card {
 
 impl Ord for Card {
     fn cmp(&self, other: &Self) -> Ordering {
-        match self.strength.cmp(&other.strength) {
-            Ordering::Less => Ordering::Greater,
-            Ordering::Equal => Ordering::Equal,
-            Ordering::Greater => Ordering::Less,
-        }
+        self.strength.cmp(&other.strength)
     }
 }
 
 impl Card {
-    const LABEL_STRENGTH: [char; 13] = [
-        'A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2',
-    ];
-
     fn new(label: char) -> Result<Card> {
-        let strength = match Self::LABEL_STRENGTH.contains(&label) {
-            true => Self::LABEL_STRENGTH.partition_point(|l| l == &label),
+        let strength = match label {
+            'A' => 0,
+            'K' => 1,
+            'Q' => 2,
+            'J' => 3,
+            'T' => 4,
+            '9' => 5,
+            '8' => 6,
+            '7' => 7,
+            '6' => 8,
+            '5' => 9,
+            '4' => 10,
+            '3' => 11,
+            '2' => 12,
             _ => bail!("invalid label: {label}"),
         };
 
@@ -161,17 +163,220 @@ enum Type {
 mod tests {
     use super::*;
 
-    const INPUT: &str = "32T3K 765
+    #[test]
+    fn test_play() {
+        let input = "
+32T3K 765
 T55J5 684
 KK677 28
 KTJJT 220
 QQQJA 483
-
 ";
+        let expected = 6440;
+        assert_eq!(play(input).unwrap(), expected);
+    }
 
     #[test]
-    fn test_play() {
-        let expected = 6440;
-        assert_eq!(play(INPUT).unwrap(), expected);
+    fn test_play_2() {
+        let input = "
+AAAAA 2
+22222 3
+AAAAK 5
+22223 7
+AAAKK 11
+22233 13
+AAAKQ 17
+22234 19
+AAKKQ 23
+22334 29
+AAKQJ 31
+22345 37
+AKQJT 41
+23456 43
+";
+
+        let expected = 1343;
+        assert_eq!(play(input).unwrap(), expected);
+    }
+
+    #[test]
+    fn test_set_ord() -> Result<()> {
+        let mut input = [
+            Set {
+                hand: Hand::parse("32T3K")?,
+                bid: 765,
+            },
+            Set {
+                hand: Hand::parse("T55J5")?,
+                bid: 684,
+            },
+            Set {
+                hand: Hand::parse("KK677")?,
+                bid: 28,
+            },
+            Set {
+                hand: Hand::parse("KTJJT")?,
+                bid: 220,
+            },
+            Set {
+                hand: Hand::parse("QQQJA")?,
+                bid: 483,
+            },
+        ];
+        let expected = [
+            Set {
+                hand: Hand::parse("QQQJA")?,
+                bid: 483,
+            },
+            Set {
+                hand: Hand::parse("T55J5")?,
+                bid: 684,
+            },
+            Set {
+                hand: Hand::parse("KK677")?,
+                bid: 28,
+            },
+            Set {
+                hand: Hand::parse("KTJJT")?,
+                bid: 220,
+            },
+            Set {
+                hand: Hand::parse("32T3K")?,
+                bid: 765,
+            },
+        ];
+        input.sort_unstable();
+        assert_eq!(input, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_hand_ord() -> Result<()> {
+        let mut input = [
+            Hand::parse("32T3K")?,
+            Hand::parse("T55J5")?,
+            Hand::parse("KK677")?,
+            Hand::parse("KTJJT")?,
+            Hand::parse("QQQJA")?,
+        ];
+        let expected = [
+            Hand::parse("QQQJA")?,
+            Hand::parse("T55J5")?,
+            Hand::parse("KK677")?,
+            Hand::parse("KTJJT")?,
+            Hand::parse("32T3K")?,
+        ];
+        input.sort_unstable();
+        assert_eq!(input, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_hand_ord_2() -> Result<()> {
+        let mut input = [
+            Hand::parse("23456")?,
+            Hand::parse("AKQJT")?,
+            Hand::parse("22345")?,
+            Hand::parse("AAKQJ")?,
+            Hand::parse("22334")?,
+            Hand::parse("AAKKQ")?,
+            Hand::parse("22234")?,
+            Hand::parse("AAAKQ")?,
+            Hand::parse("22233")?,
+            Hand::parse("AAAKK")?,
+            Hand::parse("22223")?,
+            Hand::parse("AAAAK")?,
+            Hand::parse("22222")?,
+            Hand::parse("AAAAA")?,
+        ];
+        let expected = [
+            Hand::parse("AAAAA")?,
+            Hand::parse("22222")?,
+            Hand::parse("AAAAK")?,
+            Hand::parse("22223")?,
+            Hand::parse("AAAKK")?,
+            Hand::parse("22233")?,
+            Hand::parse("AAAKQ")?,
+            Hand::parse("22234")?,
+            Hand::parse("AAKKQ")?,
+            Hand::parse("22334")?,
+            Hand::parse("AAKQJ")?,
+            Hand::parse("22345")?,
+            Hand::parse("AKQJT")?,
+            Hand::parse("23456")?,
+        ];
+        input.sort_unstable();
+        assert_eq!(input, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_hand_ord_3() -> Result<()> {
+        let mut input = [Hand::parse("33322")?, Hand::parse("KKKKQ")?];
+        let expected = [Hand::parse("KKKKQ")?, Hand::parse("33322")?];
+        input.sort_unstable();
+        assert_eq!(input, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_card_ord() -> Result<()> {
+        let mut input = [
+            Card::new('2')?,
+            Card::new('3')?,
+            Card::new('4')?,
+            Card::new('5')?,
+            Card::new('6')?,
+            Card::new('7')?,
+            Card::new('8')?,
+            Card::new('9')?,
+            Card::new('T')?,
+            Card::new('J')?,
+            Card::new('Q')?,
+            Card::new('K')?,
+            Card::new('A')?,
+        ];
+        let expected = [
+            Card::new('A')?,
+            Card::new('K')?,
+            Card::new('Q')?,
+            Card::new('J')?,
+            Card::new('T')?,
+            Card::new('9')?,
+            Card::new('8')?,
+            Card::new('7')?,
+            Card::new('6')?,
+            Card::new('5')?,
+            Card::new('4')?,
+            Card::new('3')?,
+            Card::new('2')?,
+        ];
+        input.sort_unstable();
+        assert_eq!(input, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_hand_type_ord() {
+        let mut input = [
+            Type::HighCard,
+            Type::OnePair,
+            Type::TwoPair,
+            Type::ThreeOfAKind,
+            Type::FullHouse,
+            Type::FourOfAKind,
+            Type::FiveOfAKind,
+        ];
+        let expected = [
+            Type::FiveOfAKind,
+            Type::FourOfAKind,
+            Type::FullHouse,
+            Type::ThreeOfAKind,
+            Type::TwoPair,
+            Type::OnePair,
+            Type::HighCard,
+        ];
+        input.sort_unstable();
+        assert_eq!(input, expected);
     }
 }
