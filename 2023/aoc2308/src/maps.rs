@@ -13,10 +13,15 @@ pub struct Map<'a> {
     nodes: HashMap<&'a str, (&'a str, &'a str)>,
 }
 
-impl<'a> Map<'a> {
-    const FROM: &'a str = "AAA";
-    const TO: &'a str = "ZZZ";
+impl<'a> Iterator for Map<'a> {
+    type Item = &'a str;
 
+    fn next(&mut self) -> Option<Self::Item> {
+        todo!()
+    }
+}
+
+impl<'a> Map<'a> {
     pub fn parse(s: &str) -> Result<Map> {
         let mut lines = s.trim().lines();
 
@@ -50,10 +55,14 @@ impl<'a> Map<'a> {
         Ok(Map { directions, nodes })
     }
 
-    pub fn steps(&self) -> Result<usize> {
+    pub fn nodes(&self) -> Vec<&&str> {
+        self.nodes.keys().collect()
+    }
+
+    pub fn steps_from(&self, from: &str) -> Result<usize> {
         let mut steps = 0;
 
-        let mut current = Self::FROM;
+        let mut current = from;
         for dir in self.directions.iter().cycle() {
             steps += 1;
             let next = self
@@ -64,7 +73,7 @@ impl<'a> Map<'a> {
                 Direction::Left => next.0,
                 Direction::Right => next.1,
             };
-            if current == Self::TO {
+            if current.ends_with('Z') {
                 break;
             }
         }
@@ -75,6 +84,7 @@ impl<'a> Map<'a> {
 
 #[cfg(test)]
 mod tests {
+    use num::Integer;
     use test_case::case;
 
     use super::*;
@@ -99,13 +109,43 @@ BBB = (AAA, ZZZ)
 ZZZ = (ZZZ, ZZZ)
 ";
 
+    const INPUT_THREE: &str = "
+LR
+
+11A = (11B, XXX)
+11B = (XXX, 11Z)
+11Z = (11B, XXX)
+22A = (22B, XXX)
+22B = (22C, 22C)
+22C = (22Z, 22Z)
+22Z = (22B, 22B)
+XXX = (XXX, XXX)
+";
+
     #[case(INPUT_ONE, 2)]
     #[case(INPUT_TWO, 6)]
-    fn test_map(input: &str, expected: usize) -> anyhow::Result<()> {
+    fn test_map_aaa(input: &str, expected: usize) -> anyhow::Result<()> {
         let actual = Map::parse(input)
             .with_context(|| "parsing map")?
-            .steps()
+            .steps_from("AAA")
             .with_context(|| "counting steps")?;
+        assert_eq!(actual, expected);
+        Ok(())
+    }
+
+    #[case(INPUT_THREE, 6)]
+    fn test_map_many(input: &str, expected: usize) -> anyhow::Result<()> {
+        let map = Map::parse(input).with_context(|| "parsing map")?;
+        let actual = map
+            .nodes()
+            .into_iter()
+            .filter(|n| n.ends_with('A'))
+            .map(|start| map.steps_from(start))
+            .collect::<Result<Vec<usize>>>()
+            .with_context(|| "counting steps")?
+            .into_iter()
+            .reduce(|a, b| a.lcm(&b))
+            .with_context(|| "totalling steps")?;
         assert_eq!(actual, expected);
         Ok(())
     }
