@@ -42,7 +42,9 @@ impl Engine {
                             .rfind(|c: char| !c.is_ascii_digit())
                             .map(|i| i + 1)
                             .unwrap_or_default();
-                        line.get(i..c).map(|s| part.insert_str(0, s));
+                        if let Some(s) = line.get(i..c) {
+                            part.insert_str(0, s)
+                        }
                         location.range.start = i;
                     }
 
@@ -120,6 +122,7 @@ struct Location {
 }
 
 impl Location {
+    #[cfg(test)]
     pub fn from_range_usize(line: usize, range: Range<usize>) -> Location {
         Location { line, range }
     }
